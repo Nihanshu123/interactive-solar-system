@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enhanced 3D Solar System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* --- General Setup --- */
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Inter", sans-serif;
+        color: white;
+        background-color: #000000;
+        transition: background-color 0.5s;
+      }
+      body.light-theme {
+        background-color: #e8f0fe;
+        color: #333;
+      }
+      canvas {
+        display: block;
+      }
+
+      /* --- UI Panels --- */
+      .panel {
+        position: absolute;
+        padding: 16px;
+        background: rgba(20, 20, 30, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        z-index: 100;
+        transition: background-color 0.5s, color 0.5s, border 0.5s;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      }
+      body.light-theme .panel {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        color: #333;
+      }
+      #info-panel {
+        top: 20px;
+        left: 20px;
+      }
+      #controls-panel {
+        top: 20px;
+        right: 20px;
+        width: 280px;
+      }
+
+      /* --- Tooltip --- */
+      #tooltip {
+        position: absolute;
+        display: none;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 6px;
+        pointer-events: none; /* Allows clicks to go through the tooltip */
+        z-index: 101;
+        font-size: 14px;
+      }
+
+      /* --- Control Items --- */
+      .control-item {
+        margin-bottom: 12px;
+      }
+      .control-item label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .control-item input[type="range"] {
+        width: 100%;
+        cursor: pointer;
+      }
+
+      /* --- Buttons --- */
+      .button {
+        padding: 10px 15px;
+        border: none;
+        background-color: rgba(76, 133, 224, 0.8);
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        margin-top: 10px;
+        transition: background-color 0.3s;
+        font-weight: 600;
+      }
+      .button:hover {
+        background-color: rgba(96, 153, 244, 1);
+      }
+      body.light-theme .button {
+        background-color: #4c85e0;
+      }
+      body.light-theme .button:hover {
+        background-color: #6099f4;
+      }
+      #reset-view-button {
+        display: none; /* Initially hidden */
+        background-color: rgba(224, 76, 76, 0.8);
+      }
+      #reset-view-button:hover {
+        background-color: rgba(244, 96, 96, 1);
+      }
+
+      /* --- Theme Toggle --- */
+      .theme-switch-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 15px;
+        padding: 8px 0;
+      }
+      .theme-switch-label {
+        font-weight: 600;
+      }
+      .theme-switch {
+        display: inline-block;
+        height: 24px;
+        position: relative;
+        width: 44px;
+      }
+      .theme-switch input {
+        display: none;
+      }
+      .slider {
+        background-color: #555;
+        bottom: 0;
+        cursor: pointer;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+        transition: 0.4s;
+        border-radius: 24px;
+      }
+      .slider:before {
+        background-color: #fff;
+        bottom: 4px;
+        content: "";
+        height: 16px;
+        left: 4px;
+        position: absolute;
+        transition: 0.4s;
+        width: 16px;
+        border-radius: 50%;
+      }
+      input:checked + .slider {
+        background-color: #4c85e0;
+      }
+      input:checked + .slider:before {
+        transform: translateX(20px);
+      }
+    </style>
+  </head>
+  <body class="dark-theme">
+    <div id="info-panel" class="panel">
+      <h1>Solar System</h1>
+      <p>Hover over a planet for its name. Click to focus.</p>
+      <div id="reset-view-button" class="button">Reset View</div>
+    </div>
+
+    <div id="controls-panel" class="panel">
+      <h2>Controls</h2>
+      <div class="control-item">
+        <div id="pause-button" class="button">Pause Animation</div>
+      </div>
+      <div class="theme-switch-wrapper">
+        <span class="theme-switch-label">Dark/Light Mode</span>
+        <label class="theme-switch">
+          <input type="checkbox" id="theme-toggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <hr style="border-color: rgba(255, 255, 255, 0.2); margin: 15px 0" />
+      <h3>Orbital Speeds</h3>
+      <div id="sliders-container"></div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      // --- Scene variables ---
+      let scene, camera, renderer, clock, controls;
+      let raycaster, mouse, mouseScreenPosition;
+      let isPaused = false;
+      let stars;
+      let focusedPlanet = null;
+      const originalCameraPos = new THREE.Vector3(0, 70, 180);
+
+      // --- Data ---
+      const planets = [
+        {
+          name: "Mercury",
+          radius: 0.38,
+          distance: 20,
+          speed: 0.04,
+          baseColor: 0xaaaaaa,
+        },
+        {
+          name: "Venus",
+          radius: 0.95,
+          distance: 28,
+          speed: 0.015,
+          baseColor: 0xffd700,
+        },
+        {
+          name: "Earth",
+          radius: 1,
+          distance: 38,
+          speed: 0.01,
+          baseColor: 0x0077ff,
+        },
+        {
+          name: "Mars",
+          radius: 0.53,
+          distance: 48,
+          speed: 0.008,
+          baseColor: 0xff4500,
+        },
+        {
+          name: "Jupiter",
+          radius: 4,
+          distance: 70,
+          speed: 0.002,
+          baseColor: 0xffa500,
+        },
+        {
+          name: "Saturn",
+          radius: 3.5,
+          distance: 95,
+          speed: 0.001,
+          baseColor: 0xf0e68c,
+          hasRing: true,
+        },
+        {
+          name: "Uranus",
+          radius: 2,
+          distance: 120,
+          speed: 0.0004,
+          baseColor: 0xadd8e6,
+        },
+        {
+          name: "Neptune",
+          radius: 1.9,
+          distance: 145,
+          speed: 0.0002,
+          baseColor: 0x0000ff,
+        },
+      ];
+
+      // --- Object arrays ---
+      const planetObjects = [];
+      const planetMeshes = [];
+
+      // --- DOM Elements ---
+      const tooltip = document.getElementById("tooltip");
+      const pauseButton = document.getElementById("pause-button");
+      const themeToggle = document.getElementById("theme-toggle");
+      const resetButton = document.getElementById("reset-view-button");
+
+      function init() {
+        // --- Core setup ---
+        scene = new THREE.Scene();
+        clock = new THREE.Clock();
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          3000
+        );
+        camera.position.copy(originalCameraPos);
+
+        // --- Interaction setup ---
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+        mouseScreenPosition = new THREE.Vector2();
+
+        // --- Renderer setup ---
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- Controls ---
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.minDistance = 5;
+        controls.maxDistance = 600;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 2.5, 3000);
+        scene.add(pointLight);
+
+        // --- Scene Creation ---
+        createSun();
+        createPlanets();
+        createStars();
+
+        // --- Event Listeners ---
+        setupEventListeners();
+      }
+
+      /**
+       * Creates the sun with a mesh and a glow effect.
+       */
+      function createSun() {
+        // Sun Mesh
+        const sunGeometry = new THREE.SphereGeometry(10, 64, 64);
+        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sun);
+
+        // Sun Glow
+        const glowMaterial = new THREE.SpriteMaterial({
+          map: createGlowTexture(),
+          color: 0xffd700,
+          blending: THREE.AdditiveBlending,
+          transparent: true,
+          opacity: 0.6,
+        });
+        const glowSprite = new THREE.Sprite(glowMaterial);
+        glowSprite.scale.set(40, 40, 1);
+        scene.add(glowSprite);
+      }
+
+      /**
+       * Generates a canvas texture for the sun's glow.
+       * @returns {THREE.CanvasTexture}
+       */
+      function createGlowTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          0,
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width / 2
+        );
+        gradient.addColorStop(0.2, "rgba(255, 255, 255, 1.0)");
+        gradient.addColorStop(1.0, "rgba(255, 255, 255, 0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      /**
+       * Generates a procedural texture for a given planet.
+       * @param {object} planetData - The planet's configuration data.
+       * @returns {THREE.CanvasTexture}
+       */
+      function createPlanetTexture(planetData) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 128;
+        const context = canvas.getContext("2d");
+        const color = new THREE.Color(planetData.baseColor);
+
+        // Default background
+        context.fillStyle = `#${color.getHexString()}`;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Add procedural details
+        if (planetData.name === "Earth") {
+          context.fillStyle = "#2a69b3"; // Ocean
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          // Clouds
+          context.fillStyle = "rgba(255, 255, 255, 0.8)";
+          for (let i = 0; i < 40; i++) {
+            context.beginPath();
+            context.arc(
+              Math.random() * canvas.width,
+              Math.random() * canvas.height,
+              Math.random() * 10 + 3,
+              0,
+              Math.PI * 2
+            );
+            context.fill();
+          }
+          // Continents
+          context.fillStyle = "#228B22"; // ForestGreen
+          for (let i = 0; i < 20; i++) {
+            context.beginPath();
+            context.ellipse(
+              Math.random() * canvas.width,
+              Math.random() * canvas.height,
+              Math.random() * 25 + 10,
+              Math.random() * 15 + 5,
+              Math.random() * Math.PI,
+              0,
+              Math.PI * 2
+            );
+            context.fill();
+          }
+        } else if (planetData.name === "Mars") {
+          context.fillStyle = "#c1440e";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          // Craters and dust
+          for (let i = 0; i < 50; i++) {
+            context.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.15})`;
+            context.beginPath();
+            context.arc(
+              Math.random() * canvas.width,
+              Math.random() * canvas.height,
+              Math.random() * 8 + 1,
+              0,
+              Math.PI * 2
+            );
+            context.fill();
+          }
+        } else if (planetData.name === "Jupiter") {
+          const colors = [
+            "#d8ca9d",
+            "#a0785a",
+            "#c7ad8d",
+            "#8a5e4a",
+            "#a99478",
+          ];
+          for (let i = 0; i < 20; i++) {
+            context.fillStyle =
+              colors[Math.floor(Math.random() * colors.length)] + "aa"; // Add alpha
+            context.fillRect(
+              0,
+              Math.random() * canvas.height,
+              canvas.width,
+              Math.random() * 15 + 2
+            );
+          }
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.needsUpdate = true;
+        return texture;
+      }
+
+      /**
+       * Creates all planet objects, their orbits, and UI controls.
+       */
+      function createPlanets() {
+        const slidersContainer = document.getElementById("sliders-container");
+        planets.forEach((planetData) => {
+          // --- Planet Mesh ---
+          const planetGeometry = new THREE.SphereGeometry(
+            planetData.radius,
+            32,
+            32
+          );
+          const planetMaterial = new THREE.MeshStandardMaterial({
+            map: createPlanetTexture(planetData),
+            roughness: 0.9,
+          });
+          const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
+          planetMesh.position.x = planetData.distance;
+          planetMesh.name = planetData.name;
+          planetMeshes.push(planetMesh);
+
+          // --- Pivot for Orbit ---
+          const pivot = new THREE.Object3D();
+          pivot.add(planetMesh);
+          scene.add(pivot);
+
+          // --- Orbit Path ---
+          const orbitGeometry = new THREE.RingGeometry(
+            planetData.distance - 0.05,
+            planetData.distance + 0.05,
+            128
+          );
+          const orbitMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            side: THREE.DoubleSide,
+            opacity: 0.15,
+            transparent: true,
+          });
+          const orbitRing = new THREE.Mesh(orbitGeometry, orbitMaterial);
+          orbitRing.rotation.x = -Math.PI / 2;
+          scene.add(orbitRing);
+
+          // --- Saturn's Ring ---
+          if (planetData.hasRing) {
+            const ringGeometry = new THREE.RingGeometry(
+              planetData.radius + 1,
+              planetData.radius + 3.5,
+              64
+            );
+            const ringMaterial = new THREE.MeshBasicMaterial({
+              color: 0xaaaa88,
+              side: THREE.DoubleSide,
+              opacity: 0.7,
+              transparent: true,
+            });
+            const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+            ringMesh.rotation.x = Math.PI * 0.4;
+            planetMesh.add(ringMesh);
+          }
+
+          // Store for animation
+          const planetObject = {
+            mesh: planetMesh,
+            pivot: pivot,
+            speed: planetData.speed,
+          };
+          planetObjects.push(planetObject);
+
+          // --- Speed Control Slider ---
+          const controlItem = document.createElement("div");
+          controlItem.className = "control-item";
+          const label = document.createElement("label");
+          label.innerText = planetData.name;
+          const slider = document.createElement("input");
+          slider.type = "range";
+          slider.min = "0";
+          slider.max = (planetData.speed * 5).toString();
+          slider.step = (planetData.speed / 10).toString();
+          slider.value = planetData.speed.toString();
+          slider.addEventListener("input", (event) => {
+            planetObject.speed = parseFloat(event.target.value);
+          });
+          controlItem.appendChild(label);
+          controlItem.appendChild(slider);
+          slidersContainer.appendChild(controlItem);
+        });
+      }
+
+      /**
+       * Creates a background starfield.
+       */
+      function createStars() {
+        const starVertices = [];
+        for (let i = 0; i < 15000; i++) {
+          const x = THREE.MathUtils.randFloatSpread(2500);
+          const y = THREE.MathUtils.randFloatSpread(2500);
+          const z = THREE.MathUtils.randFloatSpread(2500);
+          starVertices.push(x, y, z);
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(starVertices, 3)
+        );
+        const starMaterial = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.8,
+        });
+        stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+      }
+
+      function setupEventListeners() {
+        window.addEventListener("resize", onWindowResize);
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("click", onMouseClick);
+        pauseButton.addEventListener("click", togglePause);
+        themeToggle.addEventListener("change", toggleTheme);
+        resetButton.addEventListener("click", resetCamera);
+      }
+
+      // --- Event Handlers ---
+      function togglePause() {
+        isPaused = !isPaused;
+        pauseButton.textContent = isPaused
+          ? "Resume Animation"
+          : "Pause Animation";
+      }
+
+      function toggleTheme(event) {
+        const isLightMode = event.target.checked;
+        document.body.className = isLightMode ? "light-theme" : "dark-theme";
+        scene.background = isLightMode
+          ? new THREE.Color(0xe8f0fe)
+          : new THREE.Color(0x000000);
+        stars.material.color.set(isLightMode ? 0x000000 : 0xffffff);
+        stars.visible = !isLightMode;
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onMouseMove(event) {
+        // Store both NDC and screen coordinates
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mouseScreenPosition.x = event.clientX;
+        mouseScreenPosition.y = event.clientY;
+      }
+
+      function onMouseClick() {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(planetMeshes);
+        if (intersects.length > 0) {
+          focusedPlanet = intersects[0].object;
+          resetButton.style.display = "block";
+        }
+      }
+
+      function resetCamera() {
+        focusedPlanet = null;
+        controls.minDistance = 5;
+        resetButton.style.display = "none";
+      }
+
+      function updateHoverTooltip() {
+        // Prevent tooltip from showing when a planet is focused
+        if (focusedPlanet) {
+          tooltip.style.display = "none";
+          return;
+        }
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(planetMeshes);
+        if (intersects.length > 0) {
+          tooltip.style.display = "block";
+          // Use stored screen coordinates to prevent errors
+          tooltip.style.left = `${mouseScreenPosition.x + 15}px`;
+          tooltip.style.top = `${mouseScreenPosition.y + 15}px`;
+          tooltip.textContent = intersects[0].object.name;
+        } else {
+          tooltip.style.display = "none";
+        }
+      }
+
+      /**
+       * The main animation loop.
+       */
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+
+        // Pause check
+        if (!isPaused) {
+          // Animate planets' revolution and rotation
+          planetObjects.forEach((p) => {
+            p.pivot.rotation.y += p.speed * 3 * delta;
+            p.mesh.rotation.y += 0.2 * delta;
+          });
+        }
+
+        // --- Camera Logic: Focus or Reset ---
+        if (focusedPlanet) {
+          // Get the planet's world position
+          const targetPosition = new THREE.Vector3();
+          focusedPlanet.getWorldPosition(targetPosition);
+
+          // Smoothly move the controls' target to the planet
+          controls.target.lerp(targetPosition, 0.08);
+
+          // Calculate a desirable camera position relative to the planet
+          const planetRadius = focusedPlanet.geometry.parameters.radius;
+          const offset = new THREE.Vector3(
+            0,
+            planetRadius * 1.5,
+            planetRadius * 4
+          );
+          const cameraTargetPosition = targetPosition.clone().add(offset);
+
+          // Smoothly move the camera to the new position
+          camera.position.lerp(cameraTargetPosition, 0.08);
+        } else {
+          // If no planet is focused, smoothly move back to the origin
+          controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.08);
+          if (camera.position.distanceTo(originalCameraPos) > 0.1) {
+            camera.position.lerp(originalCameraPos, 0.05);
+          }
+        }
+
+        // Update UI and render
+        updateHoverTooltip();
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      // --- Start the application ---
+      init();
+      animate();
+    </script>
+  </body>
+</html>
