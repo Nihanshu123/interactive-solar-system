@@ -40,35 +40,11 @@ The simulation will load and start running immediately.
 3. Right-click `index.html` → **"Open with Live Server"**
 
 ## Dependencies
-
 All dependencies are loaded via CDN, no installation required:
 
 - [three.js](https://threejs.org/) — 3D rendering library
-- Google Fonts – Inter
-
-## Demo Video
-
-Your submission must include a screen recording (2–3 min) showing:
-
-1. Solar System in motion
-2. Speed control working in real-time
-3. Camera/planet interaction (hover, click, zoom)
-4. Code and folder structure explanation
-
-## Submission Checklist
-
-- `index.html` + `main.js`
-- `README.md` (this file)
-- Optional assets folder (if textures used)
-- Demo video (`yourname-demo.mp4`)
-- Zip the folder as `YourName.zip`
-
-Send your submission via email with the subject:  
-\*\*Frontend Assignment – Nihanshu Soni
-
 ## Author
-
-**Your Name**  
+Nihanshu Soni 
 Frontend Developer  
 📧 soninihanshu777@gmail.com  
 🔗 [GitHub](https://github.com/Nihanshu123)
